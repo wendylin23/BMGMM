@@ -8,17 +8,6 @@ gmm=function(Y_sparse,time_sparse,X,Z,n_class=2,nloop=110,burnin=10,thin=1,sim=T
 	library(bayesm)
   library(fastDummies)
   library(BayesLogit)
-
-	#Y_sparse = Y_sparse
-	#time_sparse = time_sparse
-	#X = X
-	#Z = Z
-	#n_class = 2
-	#nloop = 2100
-	#burnin = 100
-	#thin = 20
-	#sim = TRUE
-	#pars = pars_true
   
   N=length(Y_sparse)
   P=length(Y_sparse[[1]])
@@ -46,18 +35,17 @@ gmm=function(Y_sparse,time_sparse,X,Z,n_class=2,nloop=110,burnin=10,thin=1,sim=T
 
 		s_sq_eps = 1							# error variance
 		A=array(0,dim=c(N,2)) 					# random effects for all N subjects
-		#Sigma_a = diag(rep(1,2))					# random effect variance
-		Sigma_a = array(1,dim = c(2,2,n_class))
+		Sigma_a = array(1,dim = c(2,2,n_class)) # random effect variance
 		for(k in 1:n_class)
 		{
 		  Sigma_a[,,k] = diag(rep(1,2))
 		}
-		alpha = array(0, dim = c(2,n_class))
+		alpha = array(0, dim = c(2,n_class)) # random effect class mean
 		beta = array(0, dim = c(Q_X,1))			# fixed effects	of linear model
 		gamma = array(0, dim = c(Q_Z,n_class))	# multinomial coefficients for class-membership
 		K = sample(1:n_class,N,replace=TRUE)	# indicators of class membership
 	}
-	if(sim==TRUE){
+	if(sim==TRUE){ ## specified as true simulated values and no estimation needed if 0.
 		est_beta = 1
 		if(est_beta == 0) beta = pars[[1]]
 		if(est_beta == 1) beta = array(0, dim = c(Q_X,1))	
@@ -68,8 +56,7 @@ gmm=function(Y_sparse,time_sparse,X,Z,n_class=2,nloop=110,burnin=10,thin=1,sim=T
 
 		est_alpha = 1
 		if(est_alpha == 0) alpha = pars[[2]]
-		#if(est_alpha == 1) alpha = pars[[2]]
-		if(est_alpha == 1) alpha = array(0, dim = c(2,n_class))  #change the ncol and nrow
+		if(est_alpha == 1) alpha = array(0, dim = c(2,n_class)) 
 
 		est_Sigma_a = 1
 		if(est_Sigma_a == 0) Sigma_a = pars[[5]]
@@ -93,7 +80,6 @@ gmm=function(Y_sparse,time_sparse,X,Z,n_class=2,nloop=110,burnin=10,thin=1,sim=T
 		est_gamma = 1
 		if(est_gamma == 0) gamma = pars[[3]]
 		if(est_gamma == 1) gamma = array(0, dim = c(Q_Z,n_class))
-		#if(est_gamma == 1) gamma = pars[[3]]
 	}		
 					
 	## initialize parameters   
@@ -125,35 +111,14 @@ gmm=function(Y_sparse,time_sparse,X,Z,n_class=2,nloop=110,burnin=10,thin=1,sim=T
 	SIGMA_A_array=NULL
 	K_pos_array = NULL
 	pi_pos_array = NULL
-	#K_array = matrix(0, nrow = N, ncol = n_class)
-	#for (i in 1:N) {
-	#  K_array[i,K[i]] = 1
-	#}
 	K_array = as.matrix(dummy_cols(K)[,-1])
 	lambda = array(rep(diag(rep(1,N)),n_class-1),dim = c(N,N,n_class-1))
 	C=matrix(rep(1,N*n_class),ncol = n_class,nrow = N)
-	Z_array = matrix(0, nrow = N, ncol = n_class-1)
-	for (k in 1:(n_class-1)) {
-	  z_t = abs(rlogis(N,0,1))
-	  for(i in 1:N)
-	  {
-	    if(K_array[i,k] == 1)
-	      #Z_array[i,k] = z_t[i] * ifelse(Z[[i]]%*%gamma[,k]>0,1,0)
-	      Z_array[i,k] = z_t[i]
-	    else
-	      #Z_array[i,k] = z_t[i] * ifelse(Z[[i]]%*%gamma[,k]<=0,1,0)
-	      Z_array[i,k] = -z_t[i]
-	  }
-	}
-	
 	gamma_array = array(0,dim = c(Q_Z,n_class,nloop))
 	omega = matrix(rpg(N*n_class,1,0),ncol = n_class,nrow = N)
 		
 	# run MCMC 
   for(ii in 1:nloop){
-    # if(ii%%50==0)
-    #   print(ii)
-
 		#draw A
 		if(est_A == 1){
 		  for(i in 1:N){
@@ -172,18 +137,14 @@ gmm=function(Y_sparse,time_sparse,X,Z,n_class=2,nloop=110,burnin=10,thin=1,sim=T
 		    N_k = sum(K == k)
 		    Sigma_alpha_k = solve(N_k*solve(Sigma_a[,,k])+diag(rep(1,2))/cc)
 		    mu_alpha_k = Sigma_alpha_k%*%solve(Sigma_a[,,k])%*%cbind(apply(matrix(A[K==k,],ncol = 2),2,sum))
-		    #mu_alpha_k = Sigma_alpha_k%*%solve(Sigma_a)%*%cbind(apply(A[K==k,],2,sum))
 		    alpha[,k] = as.vector((rmvnorm(1,mu_alpha_k,Sigma_alpha_k)))
 		  }
-		  alpha <- alpha[,order(alpha[1,])]
-		  #alpha[2,] <- alpha[2,order(alpha[2,])]
-		  #alpha[1,] <- alpha[1,order(alpha[1,])]
+		  #alpha <- alpha[,order(alpha[1,])] ## specify the order contraints
 		}
 
 		#draw Sigma_a
     if(est_Sigma_a == 1){
       df = 2
-      #rho = 0
       for(k in 1:n_class)
       {
         lambdanew = diag(df)
@@ -194,9 +155,6 @@ gmm=function(Y_sparse,time_sparse,X,Z,n_class=2,nloop=110,burnin=10,thin=1,sim=T
         eta_a = eta + sum(K==k) + df - 1
         Psi_t = sweep(matrix(A[K==k,],ncol = 2), 2, alpha[,k])
         Psi_a = 2*eta*lambdanew + t(Psi_t)%*%(Psi_t)
-        #eta_a = eta + sum(K==k)
-        #Psi_t = sweep(matrix(A[K==k,],ncol = 2), 2, alpha[,k])
-        #Psi_a = Psi + t(Psi_t)%*%(Psi_t)
         Sigma_a[,,k] = riwish(eta_a, Psi_a)
       }
     }
@@ -243,27 +201,6 @@ gmm=function(Y_sparse,time_sparse,X,Z,n_class=2,nloop=110,burnin=10,thin=1,sim=T
 		    gamma_array[,k,ii] = rmvnorm(1, m, V)
 		  }
 		  gamma = array(gamma_array[,,ii], dim = c(Q_Z,n_class))
-		  # K_array = as.matrix(dummy_cols(K)[,-1])
-		  # for(k in 1:(n_class-1))
-		  # {
-		  #   V = solve(t(Z_all)%*%solve(lambda[,,k])%*%Z_all + diag(1/nu,Q_Z))
-		  #   L = t(chol(V))
-		  #   B = V%*%t(Z_all)%*%solve(lambda[,,k])%*%(Z_array[,k]+log(C[,k]))
-		  #   temp = rnorm(Q_Z,0,1)
-		  #   gamma_array[,k,ii] = B + L%*%temp
-		  #   gamma[,k] = B + L%*%temp
-		  #   for(i in 1:N)
-		  #   {
-		  #     m = Z[[i]]%*%gamma_array[,k,ii]
-		  #     if(n_class>=3)
-		  #       C[i,k] = sum(exp(Z[[i]]%*%gamma_array[,-c(k),ii]))
-		  #     else
-		  #       C[i,k]=1
-		  #     Z_array[i,k] = sampleLogisticInd(m-log(C[i,k]),1,K_array[i,k]) ## Truncated logistic distribution
-		  #     R = as.numeric(Z_array[i,k]-m)
-		  #     lambda[i,i,k] = samplelambda(abs(R)) ## Algorithm A4: sample auxiliary variables \lambda
-		  #   }
-		  # }
 		}
 		
 		#draw K
@@ -274,24 +211,13 @@ gmm=function(Y_sparse,time_sparse,X,Z,n_class=2,nloop=110,burnin=10,thin=1,sim=T
 				T_i = cbind(1,time_sparse[[i]][[1]])
 				Y_i = cbind(Y_sparse[[i]][[1]]) - (X[[i]])%*%beta - T_i%*%(cbind(A[i,]))
 				for(k in 1:n_class){
-					#pi_i[k] = pi_i[k] - .5*t(A[i,]-alpha[,k])%*%solve(Sigma_a[,,k])%*%(A[i,]-alpha[,k])
 				  pi_i[k] = pi_i[k] - .5*t(A[i,]-alpha[,k])%*%solve(Sigma_a[,,k])%*%(A[i,]-alpha[,k]) -.5*log(det(Sigma_a[,,k]))
 				}
 				pi_i = pi_i - max(pi_i)
 				pi_i = exp(pi_i)/apply(exp(pi_i),1,sum)
 				K[i] = which(rmultinom(1,1:n_class,pi_i)==1)
 				pi_pos[i,] = pi_i
-				#tmp = K
-				#if(mean(A[K==1,1])<mean(A[K==2,1])){
-				#	tmp[K==1]=2
-				#	tmp[K==2]=1
-				#	K=tmp
-				#}
 			}
-		  # if(length(table(K))<n_class){
-		  #   print(ii)
-		  #   print(pi_i)
-		  # }
 		}
 		
 		if(ii%%thin==0 & ii>=burnin){
@@ -322,17 +248,18 @@ gmm=function(Y_sparse,time_sparse,X,Z,n_class=2,nloop=110,burnin=10,thin=1,sim=T
 			# 	print(cbind(s_sq_eps_mean,pars[[6]]))
 			# 	#print(K)
 			# }
-			if(sim==FALSE & ii%%50==0){
-			  print(cbind(beta_mean))
-			  print(cbind(alpha_mean))
-			  print(cbind(gamma_mean))
-			  print(Sigma_a_mean)
-			  print(cbind(s_sq_eps_mean))
-			  print(table(factor(K, levels = 1:n_class)))
-			}
+			# if(sim==FALSE & ii%%50==0){
+			#   print(cbind(beta_mean))
+			#   print(cbind(alpha_mean))
+			#   print(cbind(gamma_mean))
+			#   print(Sigma_a_mean)
+			#   print(cbind(s_sq_eps_mean))
+			#   print(table(factor(K, levels = 1:n_class)))
+			# }
 		}
 	}	
 
+	## save results
 	mcmc_results=list()
 	mcmc_results[[1]] = BETA_array
 	mcmc_results[[2]] = ALPHA_array
@@ -352,105 +279,5 @@ gmm=function(Y_sparse,time_sparse,X,Z,n_class=2,nloop=110,burnin=10,thin=1,sim=T
 	mcmc_results[[16]] = pi_pos_array
 	mcmc_results[[17]] = pi_pos_mean
 
-	#par(mfrow=c(2,1))
-	#plot(A_true[,1],A_mean[,1])
-	#plot(A_true[,2],A_mean[,2])
-	#cor(A_true[,1],A_mean[,1])
-	#cor(A_true[,2],A_mean[,2])
-	#sum(round(K_mean) == K_true)
-
 	return(mcmc_results)
-}
-
-samplelambda <- function(r)
-{
-  ok = 0
-  while (ok!=1) {
-    Y = rnorm(1,0,1)
-    Y = Y*Y
-    Y = 1+(Y-sqrt(Y*(4*r+Y)))/(2*r)
-    U = runif(1,0,1)
-    if(U<=1/(1+Y))
-      lambda = r/Y
-    else
-      lambda = r*Y
-    U = runif(1,0,1)
-    if(lambda > 4/3)
-      ok = rightmost_interval(U,lambda,ok)
-    else
-      ok = leftmost_interval(U,lambda,ok)
-    end
-  }
-  return(lambda)
-}
-
-rightmost_interval <- function(U,lambda,ok)
-{
-  Z = 1
-  X = exp(-.5*lambda)
-  j = 0
-  
-  j = j + 1
-  Z = Z-((j+1)^2)*X^(((j+1)^2) - 1)
-  
-  if (Z > U) 
-    ok = 1
-  else
-  {
-    j = j + 1
-    Z = Z+((j+1)^2)*X^(((j+1)^2) - 1)
-    if(Z < U)
-      ok = 0
-  }
-  return(ok)
-}
-
-leftmost_interval <- function(U,lambda,ok)
-{
-  H = 0.5*log(2) + 2.5*log(pi) - 2.5*log(lambda) - (pi^2)/(2*lambda) + 0.5*lambda
-  lU = log(U)
-  Z = 1
-  X = exp((-pi^2)/(2*lambda))
-  K = lambda/pi^2
-  j = 0
-  
-  j = j + 1
-  Z = Z - K*X^((j^2)-1)
-  
-  if (H + log(Z) > lU) 
-    ok = 1
-  else
-  {
-    j = j + 1
-    Z = Z + ((j+1)^2)*X^(((j+1)^2) -1)
-    if(H + log(Z) < lU)
-      ok = 0
-  }
-  return(ok)
-}
-
-logisticInversecdf = function(p,a,b)
-{
-  a + b*(log(p)-log(1-p))
-}
-
-sampleLogisticInd = function(m,v,y)
-{
-  s = sign(y-0.5)
-  U = runif(1,0,1)
-  sample = logisticInversecdf(U,m,v)
-  while(sign(sample)!=s)
-  {
-    if(s > 0)
-    {
-      U = 1-runif(1,0,1)*(1-U)
-      sample = logisticInversecdf(U,m,v)
-    }
-    else
-    {
-      U = runif(1,0,1)*U
-      sample = logisticInversecdf(U,m,v)
-    }
-  }
-  return(sample)
 }
