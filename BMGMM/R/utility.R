@@ -88,7 +88,7 @@ loglik_mgmm <- function(pars_list,Y_sparse,time_sparse,M_i_sparse,X,Z,P,n_class,
 waic <- function(gmm.fit,sim.dat, Nsim, Niter, var = "unequal",n_class=3)
 {
   lppd <- rep(0,Nsim)
-  pwaic <- rep(0,Nsim)
+  pwaic1 <- pwaic2 <- rep(0,Nsim)
   for(nsim in 1:Nsim)
   {
     if(nsim %% 10 ==0)
@@ -129,20 +129,22 @@ waic <- function(gmm.fit,sim.dat, Nsim, Niter, var = "unequal",n_class=3)
               sigma_k = array(SIGMA_A_array[niter,],dim = c(2*P,2*P,n_class))[,,k]
             l_ai = mvtnorm::dmvnorm(A_array[[niter]][i,],alpha_k,sigma_k)
             zeta_ik = c(x_i%*%BETA_array[[niter]]) + t_i%*%(cbind(A_array[[niter]][i,]))
-            l_y = dnorm(y_i,zeta_ik,S_SQ_EPS_array[niter])
-            p_yi[niter] = l_ai * prod(l_y)
+            l_y = log(mvtnorm::dmvnorm(c(y_i),c(zeta_ik),diag(S_SQ_EPS_array[niter],length(y_i))))
+            p_yi[niter] = log(l_ai) + l_y
           }
-          lppd[nsim] <- lppd[nsim] + log(mean(p_yi, na.rm = TRUE))
-          pwaic[nsim] <- pwaic[nsim] + var(log(p_yi), na.rm = TRUE)
+          lppd[nsim] <- lppd[nsim] + log(mean(exp(p_yi), na.rm = TRUE))
+          pwaic1[nsim] <- pwaic1[nsim] + 2*mean(p_yi)
+          pwaic2[nsim] <- pwaic2[nsim] + var(p_yi, na.rm = TRUE)
         }
       }
     }
     else
     {
       lppd[nsim] = NA
-      pwaic[nsim] = NA
+      pwaic1[nsim] = NA
+      pwaic2[nsim] = NA
     }
   }
-  WAIC <- -2*(lppd - pwaic)
+  WAIC <- rbind(2*(lppd - pwaic1), -2*(lppd - pwaic2))
   return(WAIC)
 }
