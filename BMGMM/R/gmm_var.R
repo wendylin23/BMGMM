@@ -1,3 +1,13 @@
+##################################################
+### Growth mixture model for univariate outcome###
+##################################################
+### Input
+### Y_sparse: list of outcome vectors
+### time_sparse: list of baseline age
+### X: list of fixed effects
+### Z: list of random effects
+### n_class:  number of latent classes
+
 gmm=function(Y_sparse,time_sparse,X,Z,n_class=2,nloop=110,burnin=10,thin=1,sim=TRUE, pars = NULL){
 	
 	library(splines)
