@@ -2,7 +2,6 @@
 #################################################################
 ## Code to simulate and fit multivariate growth mixture models ##
 ## Wenyi Lin (wel316@ucsd.edu)						                     ##
-## January, 2021          								                     ##
 #################################################################
 #################################################################
 
@@ -64,11 +63,56 @@ N <- 200  			# subjects
 P <- 2  			# outcomes
 TT <- 6     			# maximum time points
 K <- 3     			# number of latent classes
-#########################
-#########################
-## fit with gmm.R code ##
-#########################
-#########################
+age0 = rnorm(N, 0, 5) 	# baseline ages
+
+## initiate simulated data
+data.sim = data.frame(id = rep(1:N,each=TT*P),outcome = rep(rep(1:P,each=TT),N), visit = rep(1:TT,N*P), age0 = rep(age0,each=TT*P))
+data.sim$time = NA
+for(i in 1:N){
+  for(p in 1:P)
+  {
+    data.sim$time[data.sim$id == i&data.sim$outcome==p] = c(0,sort(runif(TT-1, 0, 5)))  # TT number of time points
+  }
+}
+data.sim$age = data.sim$age0 + data.sim$time
+
+Z = list() # covariates latent class membership probabilities
+X = list() # fixed effects covariates
+for(i in 1:N){
+  Z[[i]] = cbind(1,rnorm(1,0,1)) 
+  ## only save the matrix once for fixed effects
+  X[[i]] = as.matrix(cbind(rnorm(1,0,1),data.sim$age0[data.sim$id == i&data.sim$outcome==1]) )
+}
+Q_X = dim(X[[1]])[2]	# number of fixed-effect covariates for linear model
+Q_Z = dim(Z[[1]])[2]	# number of fixed-effect covariates for multinomial logistic (class-membership) model 
+Z_matrix = do.call(rbind, Z)
+
+### set true parameter values & simulate data
+s_sq_eps_true = .1 
+
+# Dim of random effects: (2*P)*K
+alpha_true = rbind(cbind(c(0.2,3),c(2,1),c(10,-0.5)), #p=1
+                   cbind(c(0.5,1),c(1,2),c(2,-0.5)), #p=2
+                   cbind(c(3,0.1),c(0.5,4),c(-2,2)))
+
+# Dim of covariance of random effects: (2P)*(2P)
+Sigma_a_true = rWishart(K,2*P,.2*diag(2*P))
+
+# Dim of fixed effect: Q_X*P
+beta_true = cbind(c(1,0.5),c(3,-0.1),c(4,-0.5))
+
+# Dim of class coefficients: Q_Z*K
+gamma_true = cbind(c(1,0.5),c(2,-0.5),c(0,0))
+#A_true = rmvnorm(N,rep(0,2*P),Sigma_a_true)
+
+# Initiate list for saving true parameters
+pars_true = list()
+pars_true[[1]] = beta_true
+pars_true[[2]] = alpha_true
+pars_true[[3]] = gamma_true
+#pars_true[[4]] = A_true
+pars_true[[5]] = Sigma_a_true
+pars_true[[6]] = s_sq_eps_true
 n_class = K
 nloop = 2000
 burnin = 1000
@@ -79,36 +123,29 @@ Nsim = 100
 gmm.fit =list()
 K_true <- array(NA, dim = c(Nsim,N))
 
-## simulate and fit growth mixture model
-set.seed(rng_seed)
+## simulate and fit data
 start_time <- Sys.time()
+#for(nsim in 1:Nsim)
 nsim = 1
 idx = 1
 while(nsim<=Nsim)
 {
-  Y_sparse = sim.dat[[nsim]]$Y_sparse
-  time_sparse = sim.dat[[nsim]]$time_sparse
-  M_i_sparse = sim.dat[[nsim]]$M_i_sparse
-  X = sim.dat[[nsim]]$X
-  Z = sim.dat[[nsim]]$Z
-  pars_true = sim.dat[[nsim]]$pars_true
   tryCatch({
-            print(nsim)
-            sim.res =  mgmm(Y_sparse=Y_sparse,time_sparse=time_sparse,M_i_sparse=M_i_sparse,
-                            X=X,Z=Z,n_class = n_class,P=P,
-                            nloop=nloop,burnin=burnin,thin=thin,sim=TRUE,pars = pars_true) 
-            gmm.fit[[nsim]] <- sim.res
-            K_true[nsim,] <- sim.dat[[nsim]]$pars_true[[7]]
-           },
-           error = function(e){print(paste0("idx = ",idx," ",e))})
+    print(nsim)
+    sim.res = mgmm_simulation(data.sim = data.sim,pars_true = pars,X,Z,
+                              P=P,n_class=K,nloop=nloop,burnin=burnin,thin=thin)
+    gmm.fit[[nsim]] <- sim.res$gmm.fit
+    K_true[nsim,] <- sim.res$pars_true[[7]]
+    nsim = nsim+1
+  },
+  error = function(e){print(paste0("idx = ",idx," ",e))})
   idx = idx+1
-  nsim = nsim+1
   if((nsim-1)%%5==0){
     res_list = list(gmm.fit = gmm.fit,
-                    sim.dat = sim.dat,
+                    pars_true = pars_true,
                     K_true = K_true
                     #time = end_time-start_time
-                    )
+    )
     save(res_list,file = paste0("results/mgmm_simulation_N",N,"_K",K,"_Outcome",P,".rdata"))
   }
 }
@@ -116,7 +153,8 @@ end_time <- Sys.time()
 print(end_time - start_time)
 
 res_list = list(gmm.fit = gmm.fit,
-                sim.dat = sim.dat,
+                pars_true = pars_true,
                 K_true = K_true,
                 time = end_time-start_time)
 save(res_list,file = paste0("results/mgmm_simulation_N",N,"_K",K,"_Outcome",P,".rdata"))
+
