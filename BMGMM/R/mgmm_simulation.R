@@ -1,3 +1,17 @@
+###############################################################
+######### Simulation function for multivariate outcome ########
+###############################################################
+### Input
+### data.sim: initial data input for simulation
+### pars_true: input parameters
+### X: list of fixed effect 
+### Z: list of random effect
+##################################
+### Output
+### gmm.fit: fitted results with gmm function
+### sim.dat: simulated data
+### K_true: true class of each subject in the simulated data
+
 mgmm_simulation <- function(data.sim,pars_true,X,Z,plot=FALSE,
                             P=1,n_class=2,nloop=110,burnin=10,thin=1)
 {
