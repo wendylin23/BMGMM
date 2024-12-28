@@ -1,3 +1,14 @@
+#########################################################################
+### Growth mixture model for multivariate outcome and equal variance ####
+#########################################################################
+### Input
+### Y_sparse: list of outcome vectors
+### time_sparse: list of baseline age
+### M_i_sparse: list of number of inputs for each visit by outcome
+### X: list of fixed effects
+### Z: list of random effects
+### n_class:  number of latent classes
+
 mgmm=function(Y_sparse,time_sparse,M_i_sparse,X,Z,P=1,n_class=2,nloop=110,burnin=10,thin=1,sim=TRUE, pars = NULL){
   
   library(splines)
